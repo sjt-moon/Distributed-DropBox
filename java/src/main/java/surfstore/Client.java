@@ -12,6 +12,9 @@ import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 import surfstore.SurfStoreBasic.Empty;
 
+import java.io.UnsupportedEncodingException;
+import com.google.protobuf.ByteString;
+
 
 public final class Client {
     private static final Logger logger = Logger.getLogger(Client.class.getName());
@@ -40,15 +43,50 @@ public final class Client {
         metadataChannel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
         blockChannel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }
-    
+
+  private static Block stringToBlock(String s) {
+    Builder builder = Block.newBuilder();
+    try {
+      builder.setData(ByteString.copyFrom(s, "UTF-8"));
+    }
+    catch (UnsupportedEncodingException e) {
+      throw new RuntimeException(e);
+    }
+    builder.setHash(HashUtils.sha256(s));
+    return builder.build();
+  }
+
+  private void ensure(boolean flag) {
+    if (!flag) {
+      System.out.println("Assertion failed");
+    }
+  }
+
 	private void go() {
-		metadataStub.ping(Empty.newBuilder().build());
-        logger.info("Successfully pinged the Metadata server");
-        
-        blockStub.ping(Empty.newBuilder().build());
-        logger.info("Successfully pinged the Blockstore server");
-        
-        // TODO: Implement your client here
+      //metadataStub.ping(Empty.newBuilder().build());
+      //logger.info("Successfully pinged the Metadata server");
+
+      blockStub.ping(Empty.newBuilder().build());
+      logger.info("Successfully pinged the Blockstore server");
+
+      // TODO: Implement your client here
+      Block b1 = stringToBlock("block-01");
+      Block b2 = stringToBlock("block-02");
+
+      ensure(blockStub.hasBlock(b1).getAnswer() == false);
+      ensure(blockStub.hasBlock(b2).getAnswer() == false);
+
+      blockStub.storeBlock(b1);
+      ensure(blockStub.hasBlock(b1).getAnswer() == true);
+
+      blockStub.storeBlock(b2);
+      ensure(blockStub.hasBlock(b2).getAnswer() == true);
+
+      Block b1prime = blockStub.getBlock(b1);
+      ensure(b1prime.getHash().equals(b1.getHash()));
+      ensure(b1prime.getData().equals(b1.getData()));
+
+      logger.info("Pass the first trial");
 	}
 
 	/*
@@ -59,7 +97,7 @@ public final class Client {
                 .description("Client for SurfStore");
         parser.addArgument("config_file").type(String.class)
                 .help("Path to configuration file");
-        
+
         Namespace res = null;
         try {
             res = parser.parseArgs(args);
@@ -79,7 +117,7 @@ public final class Client {
         ConfigReader config = new ConfigReader(configf);
 
         Client client = new Client(config);
-        
+
         try {
         	client.go();
         } finally {

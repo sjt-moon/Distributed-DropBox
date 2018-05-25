@@ -93,10 +93,12 @@ public final class BlockStore {
 
       protected Map<String, byte[]> blockMap;
 
+      /*
       public BlockStoreImpl() {
         super();
         this.blockMap = new HashMap<String, byte[]>();
       }
+      */
 
         @Override
         public void ping(Empty req, final StreamObserver<Empty> responseObserver) {
@@ -110,7 +112,7 @@ public final class BlockStore {
         public void storeBlock(surfstore.SurfStoreBasic.Block request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.Empty> responseObserver) {
           logger.info("Storing block with hash " + request.getHash());
 
-          blockMap.put(request.getHash(), request.getData().toByteArray());
+          //blockMap.put(request.getHash(), request.getData().toByteArray());
 
           Empty response = Empty.newBuilder().build();
           responseObserver.onNext(response);
@@ -121,12 +123,14 @@ public final class BlockStore {
         public void getBlock(surfstore.SurfStoreBasic.Block request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.Block> responseObserver) {
           logger.info("Getting block with hash " + request.getHash());
 
-          byte[] data = blockMap.get(request.getHash());
+          /*byte[] data = blockMap.get(request.getHash());
 
           Builder builder = Block.newBuilder();
           builder.setData(ByteString.copyFrom(data));
           builder.setHash(request.getHash());
           Block response = builder.build();
+          */
+          Block response = Block.newBuilder().build();
 
           responseObserver.onNext(response);
           responseObserver.onCompleted();
@@ -136,9 +140,9 @@ public final class BlockStore {
         public void hasBlock(surfstore.SurfStoreBasic.Block request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.SimpleAnswer> responseObserver) {
           logger.info("Testing for existence of block with hash " + request.getHash());
 
-          boolean answer = blockMap.containsKey(request.getHash());
+          //boolean answer = blockMap.containsKey(request.getHash());
 
-          SimpleAnswer response = SimpleAnswer.newBuilder().setAnswer(answer).build();
+          SimpleAnswer response = SimpleAnswer.newBuilder().setAnswer(false).build();
           responseObserver.onNext(response);
           responseObserver.onCompleted();
         }

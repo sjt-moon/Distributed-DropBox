@@ -17,6 +17,27 @@ import com.google.protobuf.ByteString;
 
 import surfstore.SurfStoreBasic.*;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
+
+class HashUtils {
+    public static String sha256(String str) {
+        MessageDigest digest = null;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        }
+        catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            System.exit(2);
+        }
+        byte[] hash = digest.digest(str.getBytes(StandardCharsets.UTF_8));
+        String encoded = Base64.getEncoder().encodeToString(hash);
+        return encoded;
+    }
+}
+
 public final class Client {
     private static final Logger logger = Logger.getLogger(Client.class.getName());
 
@@ -53,8 +74,7 @@ public final class Client {
     catch (UnsupportedEncodingException e) {
       throw new RuntimeException(e);
     }
-    // builder.setHash(HashUtils.sha256(s));
-    builder.setHash(s);
+    builder.setHash(HashUtils.sha256(s));
     return builder.build();
   }
 

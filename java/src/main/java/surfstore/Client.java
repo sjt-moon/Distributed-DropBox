@@ -15,6 +15,7 @@ import surfstore.SurfStoreBasic.Empty;
 import java.io.UnsupportedEncodingException;
 import com.google.protobuf.ByteString;
 
+import surfstore.SurfStoreBasic.*;
 
 public final class Client {
     private static final Logger logger = Logger.getLogger(Client.class.getName());
@@ -45,14 +46,15 @@ public final class Client {
     }
 
   private static Block stringToBlock(String s) {
-    Builder builder = Block.newBuilder();
+    Block.Builder builder = Block.newBuilder();
     try {
       builder.setData(ByteString.copyFrom(s, "UTF-8"));
     }
     catch (UnsupportedEncodingException e) {
       throw new RuntimeException(e);
     }
-    builder.setHash(HashUtils.sha256(s));
+    // builder.setHash(HashUtils.sha256(s));
+    builder.setHash(s);
     return builder.build();
   }
 

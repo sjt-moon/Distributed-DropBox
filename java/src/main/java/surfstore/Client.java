@@ -95,8 +95,8 @@ public final class Client {
       Block b1 = stringToBlock("block-01");
       Block b2 = stringToBlock("block-02");
 
-      ensure(blockStub.hasBlock(b1).getAnswer() == false);
-      ensure(blockStub.hasBlock(b2).getAnswer() == false);
+      //ensure(blockStub.hasBlock(b1).getAnswer() == false);
+      //ensure(blockStub.hasBlock(b2).getAnswer() == false);
 
       blockStub.storeBlock(b1);
       ensure(blockStub.hasBlock(b1).getAnswer() == true);
@@ -115,10 +115,13 @@ public final class Client {
 	 * TODO: Add command line handling here
 	 */
     private static Namespace parseArgs(String[] args) {
-        ArgumentParser parser = ArgumentParsers.newFor("Client").build()
-                .description("Client for SurfStore");
-        parser.addArgument("config_file").type(String.class)
-                .help("Path to configuration file");
+        ArgumentParser parser = ArgumentParsers.newFor("Client").build().description("Client for SurfStore");
+        parser.addArgument("config_file").type(String.class).help("Path to configuration file");
+        parser.addArgument("action").type(String.class).help("Client action: upload|download|delete|GetVersion");
+        parser.addArgument("filename").type(String.class).help("file name");
+        if (args.length == 4) {
+            parser.addArgument("storage path").type(String.class).help("Path to store downloaded file");
+        }
 
         Namespace res = null;
         try {
@@ -126,6 +129,14 @@ public final class Client {
         } catch (ArgumentParserException e){
             parser.handleError(e);
         }
+
+        // client action
+        String action = res.get("action");
+        if (!action.equals("upload") && !action.equals("download") && !action.equals("delete") && !action.equals("getversion")) {
+            System.out.println("Illegal action, plz use upload|download|delete|getversion");
+            System.exit(2);
+        }
+
         return res;
     }
 

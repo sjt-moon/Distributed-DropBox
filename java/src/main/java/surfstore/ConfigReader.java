@@ -12,7 +12,7 @@ public final class ConfigReader {
     private static final String leaderNumMatchStr = "L(:|=)\\s*(?<leaderNum>\\d+)";
     private static final String metadataInstMatchStr = "metadata(?<metadataId>\\d+)(:|=)\\s*(?<metadataPort>\\d+)";
     private static final String blockInstMatchStr = "block(:|=)\\s*(?<blockPort>\\d+)";
-    
+
     private static final Pattern configMatcher = Pattern.compile(
             String.format("((%s)|(%s)|(%s)|(%s))\\s*",
                 numMetadataMatchStr,
@@ -23,17 +23,17 @@ public final class ConfigReader {
 
     protected File configFile;
     protected String config;
-    
+
     public Integer numMetadataServers;
     public HashMap<Integer, Integer> metadataPorts;
     public Integer blockPort;
     public Integer leaderNum;
-    
+
 	public ConfigReader(File configFile) throws FileNotFoundException {
 		if (!configFile.exists()) {
 			throw new FileNotFoundException(configFile.getPath());
 		}
-		
+
 		try {
 			config = new String(Files.readAllBytes(configFile.toPath()), "UTF-8");
 		} catch (Exception e) {
@@ -42,7 +42,7 @@ public final class ConfigReader {
 		}
 		parseConfigFile();
 	}
-	
+
 	public ConfigReader(String configString) {
 		configFile = null;
 		config = configString;
@@ -92,8 +92,13 @@ public final class ConfigReader {
     public int getBlockPort() {
         return blockPort;
     }
-    
+
     public int getLeaderNum() {
     	return leaderNum;
+    }
+
+    // add by sjt
+    public int getLeaderPort() {
+        return this.getMetadataPort(this.getLeaderNum());
     }
 }

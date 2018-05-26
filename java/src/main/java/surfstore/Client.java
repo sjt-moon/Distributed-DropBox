@@ -85,13 +85,14 @@ public final class Client {
   }
 
 	private void go() {
-      //metadataStub.ping(Empty.newBuilder().build());
-      //logger.info("Successfully pinged the Metadata server");
+      metadataStub.ping(Empty.newBuilder().build());
+      logger.info("Successfully pinged the Metadata server");
 
       blockStub.ping(Empty.newBuilder().build());
       logger.info("Successfully pinged the Blockstore server");
 
       // TODO: Implement your client here
+
       Block b1 = stringToBlock("block-01");
       Block b2 = stringToBlock("block-02");
 
@@ -107,6 +108,14 @@ public final class Client {
       Block b1prime = blockStub.getBlock(b1);
       ensure(b1prime.getHash().equals(b1.getHash()));
       ensure(b1prime.getData().equals(b1.getData()));
+
+      // read a file
+      // non-exist file
+      FileInfo file1 = FileInfo.newBuilder().setFilename("non-exist.txt").build();
+      FileInfo file1Response = metadataStub.readFile(file1);
+
+      //FileInfo file2 = FileInfo.newBuilder().setFilename("a.txt").build();
+      //FileInfo file1Response = metadataStub.readFile(file1);
 
       logger.info("Pass the first trial");
 	}

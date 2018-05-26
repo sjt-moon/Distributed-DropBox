@@ -92,6 +92,7 @@ public final class BlockStore {
 
     static class BlockStoreImpl extends BlockStoreGrpc.BlockStoreImplBase {
 
+      // hash -> byte block
       protected Map<String, byte[]> blockMap;
 
       public BlockStoreImpl() {

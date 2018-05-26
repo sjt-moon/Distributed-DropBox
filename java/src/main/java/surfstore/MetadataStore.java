@@ -248,6 +248,9 @@ public final class MetadataStore {
                         logger.info("Modificaiton verified");
                         builder.setResult(WriteResult.Result.OK);
                         builder.setCurrentVersion(request.getVersion());
+
+                        // if OK, update metaMap mapping from filename to FileStruct
+                        this.metaMap.put(filename, new FileStruct(request.getBlocklistList(), request.getVersion()));
                     }
 
                     // if exists missing blocks
@@ -257,7 +260,7 @@ public final class MetadataStore {
                         builder.setCurrentVersion(fileStatOnServer.version);
                         builder.addAllMissingBlocks(missingBlocks);
                     }
-                    
+
                 }
 
                 WriteResult response = builder.build();

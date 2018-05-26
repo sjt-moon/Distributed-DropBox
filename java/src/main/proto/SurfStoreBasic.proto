@@ -101,7 +101,7 @@ message Empty { }
 message FileInfo {
     string filename = 1;
     int32 version = 2;
-    repeated string blocklist = 3;
+    repeated string blocklist = 3; // hashlist
 }
 
 message Block {
@@ -118,7 +118,7 @@ message WriteResult {
     }
     Result result = 1;
     int32 current_version = 2;
-    repeated string missing_blocks = 3;
+    repeated string missing_blocks = 3; // hashlist
 }
 
 message SimpleAnswer {

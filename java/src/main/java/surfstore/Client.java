@@ -22,6 +22,15 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
+import java.util.LinkedList;
+
 class HashUtils {
     public static String sha256(String str) {
         MessageDigest digest = null;
@@ -84,7 +93,72 @@ public final class Client {
     }
   }
 
-	private void go() {
+    /* hash -> byte blocks */
+    private Map<String, ByteString> getHashDataMap(String filename) throws IOException {
+        String content = new String(Files.readAllBytes(Paths.get(filename)));
+        Map<String, ByteString> map = new HashMap<>();
+
+        int numBlocks = content.length() / 4096 + content.length() % 4096 == 0 ? 0 : 1;
+        for (int i = 0; i < numBlocks; i++) {
+            String stringBlock = content.substring(i * 4096, (i + 1) * 4096 < content.length() ? (i + 1) * 4096 : content.length());
+            ByteString byteBlock = ByteString.copyFrom(stringBlock, "UTF-8");
+            String hashVal = HashUtils.sha256(stringBlock);
+            map.put(hashVal, byteBlock);
+        }
+        return map;
+    }
+
+    private boolean upload (String filename) throws IOException {
+        // 1st: read file checking existence
+        FileInfo fileReadRequest = FileInfo.newBuilder().setFilename(filename).build();
+        FileInfo fileReadResponse = metadataStub.readFile(fileReadRequest);
+        int writeVersion = fileReadResponse.getVersion() + 1;
+
+        // if file does exist, return version number
+        if (fileReadResponse.getVersion() != 0) {
+            logger.info("File " + filename + " already exists with version " + fileReadResponse.getVersion() + ". Continue to update the file");
+        }
+
+        // 2nd: check missing blocks @ meta server
+        FileInfo.Builder fileModifyBuilder = FileInfo.newBuilder();
+        fileModifyBuilder.setFilename(filename);
+        fileModifyBuilder.setVersion(writeVersion);
+        Map<String, ByteString> hashDataMap = getHashDataMap(filename);
+        fileModifyBuilder.addAllBlocklist(hashDataMap.keySet());
+
+        FileInfo fileModifyRequest = fileModifyBuilder.build();
+        WriteResult fileModifyResponse = metadataStub.modifyFile(fileModifyRequest);
+
+        for (int i = 0; i < 2; i++) {
+            // if all are in BlockStore, upload success
+            if (fileModifyResponse.getResult() == WriteResult.Result.OK) {
+                logger.info("Upload done");
+                return true;
+            }
+            else if (fileModifyResponse.getResult() == WriteResult.Result.OLD_VERSION || fileModifyResponse.getResult() == WriteResult.Result.NOT_LEADER) {
+                logger.info("Upload failed, old version or not to a leader");
+                return false;
+            }
+            else {
+                // contains hash values for missing blocks
+                logger.info("Upload failed, missing blocks");
+
+                List<String> missingBlocks = fileModifyResponse.getMissingBlocksList();
+                for (String hashVal: missingBlocks) {
+                    Block.Builder missingBlockBuilder = Block.newBuilder();
+                    missingBlockBuilder.setHash(hashVal);
+                    missingBlockBuilder.setData(hashDataMap.get(hashVal));
+                    this.blockStub.storeBlock(missingBlockBuilder.build());
+                }
+
+                // then request modifyFile again
+                fileModifyResponse = metadataStub.modifyFile(fileModifyRequest);
+            }
+        }
+        return true;
+    }
+
+	private void go() throws IOException {
       metadataStub.ping(Empty.newBuilder().build());
       logger.info("Successfully pinged the Metadata server");
 
@@ -93,6 +167,7 @@ public final class Client {
 
       // TODO: Implement your client here
 
+      /*
       Block b1 = stringToBlock("block-01");
       Block b2 = stringToBlock("block-02");
 
@@ -108,14 +183,17 @@ public final class Client {
       Block b1prime = blockStub.getBlock(b1);
       ensure(b1prime.getHash().equals(b1.getHash()));
       ensure(b1prime.getData().equals(b1.getData()));
+      */
 
       // read a file
       // non-exist file
       FileInfo file1 = FileInfo.newBuilder().setFilename("non-exist.txt").build();
       FileInfo file1Response = metadataStub.readFile(file1);
 
-      //FileInfo file2 = FileInfo.newBuilder().setFilename("a.txt").build();
-      //FileInfo file1Response = metadataStub.readFile(file1);
+      upload("a.txt");
+
+      FileInfo file2 = FileInfo.newBuilder().setFilename("a.txt").build();
+      FileInfo file2Response = metadataStub.readFile(file2);
 
       logger.info("Pass the first trial");
 	}

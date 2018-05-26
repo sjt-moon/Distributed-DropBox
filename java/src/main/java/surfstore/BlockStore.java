@@ -136,9 +136,11 @@ public final class BlockStore {
 
         @Override
         public void hasBlock(surfstore.SurfStoreBasic.Block request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.SimpleAnswer> responseObserver) {
-          logger.info("Testing for existence of block with hash " + request.getHash());
-
           boolean answer = blockMap.containsKey(request.getHash());
+
+          logger.info("Testing for existence of block with hash " + request.getHash());
+          if (answer) logger.info("Yes");
+          else logger.info("No");
 
           SimpleAnswer response = SimpleAnswer.newBuilder().setAnswer(answer).build();
           responseObserver.onNext(response);

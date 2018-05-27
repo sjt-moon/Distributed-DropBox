@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.LinkedList;
 
 import java.nio.file.StandardOpenOption;
-import java.util.Scanner; 
+import java.util.Scanner;
 
 class HashUtils {
     public static String sha256(String str) {
@@ -78,45 +78,10 @@ public final class Client {
         blockChannel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }
 
-  private static Block stringToBlock(String s) {
-    Block.Builder builder = Block.newBuilder();
-    try {
-      builder.setData(ByteString.copyFrom(s, "UTF-8"));
-    }
-    catch (UnsupportedEncodingException e) {
-      throw new RuntimeException(e);
-    }
-    builder.setHash(HashUtils.sha256(s));
-    return builder.build();
-  }
-
-  private void ensure(boolean flag) {
-    if (!flag) {
-      System.out.println("Assertion failed");
-    }
-  }
-
-    /* hash -> ByteString */
-    private Map<String, ByteString> getHashDataMap(String filename) throws IOException {
-        Map<String, ByteString> map = new HashMap<>();
-
-        // if file does not exist
-        File f = new File(filename);
-        if (!(f.exists() && !f.isDirectory())) {
-            return map;
-        }
-
-        String content = new String(Files.readAllBytes(Paths.get(filename)));
-
-        int numBlocks = content.length() / 4096 + content.length() % 4096 == 0 ? 0 : 1;
-        for (int i = 0; i < numBlocks; i++) {
-            String stringBlock = content.substring(i * 4096, (i + 1) * 4096 < content.length() ? (i + 1) * 4096 : content.length());
-            ByteString byteBlock = ByteString.copyFrom(stringBlock, "UTF-8");
-            String hashVal = HashUtils.sha256(stringBlock);
-            map.put(hashVal, byteBlock);
-        }
-        return map;
-    }
+    /* **************
+    * core functions
+    * ***************
+    */
 
     private boolean upload (String filename) throws IOException {
         // 1st: read file checking existence
@@ -209,8 +174,14 @@ public final class Client {
         }
 
         // over-write to file
-        //Files.write(Paths.get(filename), content.getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
-        Files.write(Paths.get(filename), content.toByteArray(), StandardOpenOption.TRUNCATE_EXISTING);
+        // if file does not exist locally, use StandardOpenOption.CREATE
+        File fr = new File(filename);
+        if (!fr.exists()) {
+            Files.write(Paths.get(filename), content.toByteArray(), StandardOpenOption.CREATE);
+        }
+        else {
+            Files.write(Paths.get(filename), content.toByteArray(), StandardOpenOption.TRUNCATE_EXISTING);
+        }
 
         System.out.println("OK");
         return true;
@@ -243,6 +214,7 @@ public final class Client {
       ensure(b1prime.getData().equals(b1.getData()));
       */
 
+      /*
       // read a file
       // non-exist file
       FileInfo file1 = FileInfo.newBuilder().setFilename("non-exist.txt").build();
@@ -258,15 +230,35 @@ public final class Client {
       FileInfo file2Response = metadataStub.readFile(file2);
 
       // modify a.txt locally
-      Files.write(Paths.get("a.txt"), "the text".getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
-      logger.info("Now changed the file locally as follows:");
       File fr = new File("a.txt");
       Scanner sc = new Scanner(fr);
+      logger.info("Original file content is:");
+      while (sc.hasNextLine()) {
+          logger.info("----> " + sc.nextLine());
+      }
+
+      Files.write(Paths.get("a.txt"), "the text".getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
+      logger.info("Now changed the file locally as follows:");
+      fr = new File("a.txt");
+      sc = new Scanner(fr);
       while (sc.hasNextLine()) {
           logger.info("----> " + sc.nextLine());
       }
 
       download("a.txt");
+      */
+
+      /*
+      readNonExistFile();
+      readExistFile();
+
+      uploadNonExistFile();
+      uploadExistFile();
+      uploadDuplicateFile();
+      */
+      downloadNonExistFile();
+      downloadExistFile();
+      downloadModifiedFile();
 
       logger.info("Pass the first trial");
 	}
@@ -318,4 +310,141 @@ public final class Client {
         }
     }
 
+    /* **********
+    * unit tests
+    * ***********
+    */
+
+    // read a file which is NOT in the server
+    public void readNonExistFile() throws IOException {
+        FileInfo file = FileInfo.newBuilder().setFilename("non-exist.txt").build();
+        FileInfo fileResponse = metadataStub.readFile(file);
+
+        ensure(fileResponse.getVersion() == 0, "Assertion failed: read non-exist file, readFile()");
+    }
+
+    // read a file which is stored in metadata server
+    public void readExistFile() throws IOException {
+        upload("a.txt");
+
+        FileInfo file = FileInfo.newBuilder().setFilename("a.txt").build();
+        FileInfo fileResponse = metadataStub.readFile(file);
+
+        ensure(fileResponse.getVersion() > 0, "Assertion failed: read exist file, readFile()");
+    }
+
+    // upload a file which is NOT FOUND locally
+    public void uploadNonExistFile() throws IOException {
+        ensure(!upload("non-exist.txt"), "Assertion failed: upload non-exist file, upload()");
+    }
+
+    // upload a file from local client
+    public void uploadExistFile() throws IOException {
+        ensure(upload("a.txt"), "Assertion failed: upload exist file, upload()");
+    }
+
+    // upload a duplicate file from local client to server
+    public void uploadDuplicateFile() throws IOException {
+        boolean flag = upload("a.txt");
+        flag &= upload("a.txt");
+        ensure(flag, "Assertion failed: upload duplicate files, upload()");
+    }
+
+    // download a file which is NOT FOUND at server
+    public void downloadNonExistFile() throws IOException {
+        ensure(!download("non-exist.txt"), "Assertion failed: download non-exist file, download()");
+    }
+
+    // download a file from server, and that file is NOT FOUND at local
+    public void downloadExistFile() throws IOException {
+        upload("a.txt");
+
+        // remove local file
+        File file = new File("a.txt");
+        file.delete();
+        showFileContent("a.txt", "Delete local file: ");
+
+        download("a.txt");
+        showFileContent("a.txt", "Downloaded file content: ");
+    }
+
+    public void downloadModifiedFile() throws IOException {
+        // 1st: print out a.txt content
+        showFileContent("a.txt", "Original file content is:");
+
+        // 2nd: modify a.txt locally
+        Files.write(Paths.get("a.txt"), "the text".getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
+        showFileContent("a.txt", "Now changed the file locally as follows:");
+
+        // 3rd: download from server
+        ensure(download("a.txt"), "Assertion failed: error at download()");
+
+        // 4th: show contents after downloading from server
+        showFileContent("a.txt", "After downloading from server, file content is:");
+    }
+
+    /* **************
+    * some utilities
+    * ***************
+    */
+    private static Block stringToBlock(String s) {
+        Block.Builder builder = Block.newBuilder();
+        try {
+            builder.setData(ByteString.copyFrom(s, "UTF-8"));
+        }
+        catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
+        builder.setHash(HashUtils.sha256(s));
+        return builder.build();
+    }
+
+    /* hash -> ByteString */
+    private Map<String, ByteString> getHashDataMap(String filename) throws IOException {
+        Map<String, ByteString> map = new HashMap<>();
+
+        // if file does not exist
+        File f = new File(filename);
+        if (!(f.exists() && !f.isDirectory())) {
+            return map;
+        }
+
+        String content = new String(Files.readAllBytes(Paths.get(filename)));
+
+        int numBlocks = content.length() / 4096 + content.length() % 4096 == 0 ? 0 : 1;
+        for (int i = 0; i < numBlocks; i++) {
+            String stringBlock = content.substring(i * 4096, (i + 1) * 4096 < content.length() ? (i + 1) * 4096 : content.length());
+            ByteString byteBlock = ByteString.copyFrom(stringBlock, "UTF-8");
+            String hashVal = HashUtils.sha256(stringBlock);
+            map.put(hashVal, byteBlock);
+        }
+        return map;
+    }
+
+    private void ensure(boolean flag) {
+        if (!flag) {
+            System.out.println("Assertion failed");
+        }
+    }
+
+    private void ensure(boolean flag, String errorMsg) {
+        if (!flag) {
+            System.out.println("Assertion failed, " + errorMsg);
+        }
+    }
+
+    public void showFileContent(String filename, String explaination) throws IOException {
+        System.out.println(explaination);
+
+        File fr = new File(filename);
+        if (!fr.exists() || fr.isDirectory()) {
+            System.out.println("File " + filename + " does not exist or its a directory");
+            return;
+        }
+
+        Scanner sc = new Scanner(fr);
+        while (sc.hasNextLine()) {
+            System.out.println("----> " + sc.nextLine());
+        }
+    }
 }

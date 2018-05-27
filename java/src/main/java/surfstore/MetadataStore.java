@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.LinkedList;
+import java.util.Arrays;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -280,7 +281,43 @@ public final class MetadataStore {
          @Override
         public void deleteFile(surfstore.SurfStoreBasic.FileInfo request,
             io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.WriteResult> responseObserver) {
-                WriteResult response = WriteResult.newBuilder().build();
+                logger.info("Delete file " + request.getFilename());
+
+                WriteResult.Builder builder = WriteResult.newBuilder();
+
+                // first check if the file exists by reading
+                String filename = request.getFilename();
+                FileStruct fileStatOnServer = metaMap.getOrDefault(filename, new FileStruct(null, 0));
+
+                /* deletion refused */
+                if (fileStatOnServer == null) {
+                    logger.info("Deletion refused, file not found");
+                }
+
+                // not leader
+                else if (!this.isThisLeader) {
+                    logger.info("Deletion refused, not leader");
+                    builder.setResult(WriteResult.Result.NOT_LEADER);
+                    builder.setCurrentVersion(fileStatOnServer.version);
+                }
+
+                else if (request.getVersion() != fileStatOnServer.version + 1) {
+                    logger.info("Deletion refused, requested version " + request.getVersion() + " is lag behind the server (" + fileStatOnServer.version + ")");
+                    builder.setResult(WriteResult.Result.OLD_VERSION);
+                    builder.setCurrentVersion(fileStatOnServer.version);
+                }
+
+                // delete file
+                else {
+                    logger.info("Deletion verified");
+                    builder.setResult(WriteResult.Result.OK);
+                    builder.setCurrentVersion(request.getVersion());
+
+                    // set hashlist as {"0",}
+                    this.metaMap.put(filename, new FileStruct(new LinkedList<String>(Arrays.asList("0")), request.getVersion()));
+                }
+
+                WriteResult response = builder.build();
                 responseObserver.onNext(response);
                 responseObserver.onCompleted();
         }

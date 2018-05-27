@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.LinkedList;
 
 import java.nio.file.StandardOpenOption;
-import java.util.Scanner;
+import java.util.Scanner; 
 
 class HashUtils {
     public static String sha256(String str) {

@@ -159,7 +159,7 @@ public final class Client {
         FileInfo fileDownloadResponse = this.metadataStub.readFile(fileDownloadRequest);
 
         // if does not exist
-        boolean isDeletedOnServer = fileDeleteResponse.getBlocklistList().size() == 1 && fileDeleteResponse.getBlocklistList().get(0).equals("0");
+        boolean isDeletedOnServer = fileDownloadResponse.getBlocklistList().size() == 1 && fileDownloadResponse.getBlocklistList().get(0).equals("0");
         if (fileDownloadResponse.getVersion() == 0 || isDeletedOnServer) {
             System.out.println("Not Found");
             return false;

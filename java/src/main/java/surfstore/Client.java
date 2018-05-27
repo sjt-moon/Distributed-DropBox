@@ -31,6 +31,9 @@ import java.util.Map;
 import java.util.List;
 import java.util.LinkedList;
 
+import java.nio.file.StandardOpenOption;
+import java.util.Scanner;
+
 class HashUtils {
     public static String sha256(String str) {
         MessageDigest digest = null;
@@ -93,10 +96,17 @@ public final class Client {
     }
   }
 
-    /* hash -> byte blocks */
+    /* hash -> ByteString */
     private Map<String, ByteString> getHashDataMap(String filename) throws IOException {
-        String content = new String(Files.readAllBytes(Paths.get(filename)));
         Map<String, ByteString> map = new HashMap<>();
+
+        // if file does not exist
+        File f = new File(filename);
+        if (!(f.exists() && !f.isDirectory())) {
+            return map;
+        }
+
+        String content = new String(Files.readAllBytes(Paths.get(filename)));
 
         int numBlocks = content.length() / 4096 + content.length() % 4096 == 0 ? 0 : 1;
         for (int i = 0; i < numBlocks; i++) {
@@ -110,6 +120,13 @@ public final class Client {
 
     private boolean upload (String filename) throws IOException {
         // 1st: read file checking existence
+        File f = new File(filename);
+        // if file does not exist
+        if (!(f.exists() && !f.isDirectory())) {
+            System.out.println("Not Found");
+            return false;
+        }
+
         FileInfo fileReadRequest = FileInfo.newBuilder().setFilename(filename).build();
         FileInfo fileReadResponse = metadataStub.readFile(fileReadRequest);
         int writeVersion = fileReadResponse.getVersion() + 1;
@@ -155,6 +172,47 @@ public final class Client {
                 fileModifyResponse = metadataStub.modifyFile(fileModifyRequest);
             }
         }
+        System.out.println("OK");
+        return true;
+    }
+
+    private boolean download(String filename) throws IOException {
+        ByteString content = ByteString.copyFrom("", "UTF-8");
+
+        // 1st: check if exists on meta server, record hashlist @ server
+        FileInfo fileDownloadRequest = FileInfo.newBuilder().setFilename(filename).build();
+        FileInfo fileDownloadResponse = this.metadataStub.readFile(fileDownloadRequest);
+
+        // if does not exist
+        if (fileDownloadResponse.getVersion() == 0) {
+            System.out.println("Not Found");
+            return false;
+        }
+
+        List<String> hashListOnServer = fileDownloadResponse.getBlocklistList();
+
+        // 2nd: get hashlist of local copy of that file
+        Map<String, ByteString> hashDataMapOnLocal = getHashDataMap(filename);
+
+        for (String hashVal: hashListOnServer) {
+            if (!hashDataMapOnLocal.containsKey(hashVal)) {
+                Block missingBlock = Block.newBuilder().setHash(hashVal).build();
+                Block downloadBlock = this.blockStub.getBlock(missingBlock);
+
+                //content += downloadBlock.getData().toString();
+                content = content.concat(downloadBlock.getData());
+            }
+            else {
+                //content += hashDataMapOnLocal.get(hashVal).toString();
+                content = content.concat(hashDataMapOnLocal.get(hashVal));
+            }
+        }
+
+        // over-write to file
+        //Files.write(Paths.get(filename), content.getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
+        Files.write(Paths.get(filename), content.toByteArray(), StandardOpenOption.TRUNCATE_EXISTING);
+
+        System.out.println("OK");
         return true;
     }
 
@@ -190,10 +248,25 @@ public final class Client {
       FileInfo file1 = FileInfo.newBuilder().setFilename("non-exist.txt").build();
       FileInfo file1Response = metadataStub.readFile(file1);
 
+      // upload an un-existed file
+      upload("non-exist.txt");
+
+      // upload an existed file
       upload("a.txt");
 
       FileInfo file2 = FileInfo.newBuilder().setFilename("a.txt").build();
       FileInfo file2Response = metadataStub.readFile(file2);
+
+      // modify a.txt locally
+      Files.write(Paths.get("a.txt"), "the text".getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
+      logger.info("Now changed the file locally as follows:");
+      File fr = new File("a.txt");
+      Scanner sc = new Scanner(fr);
+      while (sc.hasNextLine()) {
+          logger.info("----> " + sc.nextLine());
+      }
+
+      download("a.txt");
 
       logger.info("Pass the first trial");
 	}

@@ -292,6 +292,7 @@ public final class MetadataStore {
                 /* deletion refused */
                 if (fileStatOnServer == null) {
                     logger.info("Deletion refused, file not found");
+                    builder.setCurrentVersion(fileStatOnServer.version);
                 }
 
                 // not leader

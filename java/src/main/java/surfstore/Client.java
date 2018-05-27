@@ -83,14 +83,18 @@ public final class Client {
     * ***************
     */
 
-    private boolean upload (String filename) throws IOException {
+    private boolean upload (String pathToFile) throws IOException {
         // 1st: read file checking existence
-        File f = new File(filename);
+        File f = new File(pathToFile);
         // if file does not exist
         if (!(f.exists() && !f.isDirectory())) {
             System.out.println("Not Found");
             return false;
         }
+
+        // extract filename from pathToFile
+        String[] directory = pathToFile.split("/");
+        String filename = directory[directory.length - 1];
 
         FileInfo fileReadRequest = FileInfo.newBuilder().setFilename(filename).build();
         FileInfo fileReadResponse = metadataStub.readFile(fileReadRequest);
@@ -142,6 +146,12 @@ public final class Client {
     }
 
     private boolean download(String filename) throws IOException {
+        return download(filename, ".");
+    }
+
+    private boolean download(String filename, String pathBeforeFile) throws IOException {
+        String pathToFile = pathBeforeFile + "/" + filename;
+
         ByteString content = ByteString.copyFrom("", "UTF-8");
 
         // 1st: check if exists on meta server, record hashlist @ server
@@ -149,7 +159,8 @@ public final class Client {
         FileInfo fileDownloadResponse = this.metadataStub.readFile(fileDownloadRequest);
 
         // if does not exist
-        if (fileDownloadResponse.getVersion() == 0) {
+        boolean isDeletedOnServer = fileDeleteResponse.getBlocklistList().size() == 1 && fileDeleteResponse.getBlocklistList().get(0).equals("0");
+        if (fileDownloadResponse.getVersion() == 0 || isDeletedOnServer) {
             System.out.println("Not Found");
             return false;
         }
@@ -175,19 +186,36 @@ public final class Client {
 
         // over-write to file
         // if file does not exist locally, use StandardOpenOption.CREATE
-        File fr = new File(filename);
+        File fr = new File(pathToFile);
         if (!fr.exists()) {
-            Files.write(Paths.get(filename), content.toByteArray(), StandardOpenOption.CREATE);
+            Files.write(Paths.get(pathToFile), content.toByteArray(), StandardOpenOption.CREATE);
         }
         else {
-            Files.write(Paths.get(filename), content.toByteArray(), StandardOpenOption.TRUNCATE_EXISTING);
+            Files.write(Paths.get(pathToFile), content.toByteArray(), StandardOpenOption.TRUNCATE_EXISTING);
         }
 
         System.out.println("OK");
         return true;
     }
 
-	private void go() throws IOException {
+    private boolean delete(String filename) {
+        // 1st: read file checking existence
+        FileInfo fileReadRequest = FileInfo.newBuilder().setFilename(filename).build();
+        FileInfo fileReadResponse = metadataStub.readFile(fileReadRequest);
+        int writeVersion = fileReadResponse.getVersion() + 1;
+
+        // 2nd: delete file on the server
+        FileInfo fileDeleteRequest = FileInfo.newBuilder().setFilename(filename).setVersion(writeVersion).build();
+        WriteResult fileDeleteResponse = this.metadataStub.deleteFile(fileDeleteRequest);
+
+        if (fileDeleteResponse.getResult() == WriteResult.Result.OK) {
+            System.out.println("OK");
+            return true;
+        }
+        return false;
+    }
+
+	private void go(Namespace args) throws IOException {
       metadataStub.ping(Empty.newBuilder().build());
       logger.info("Successfully pinged the Metadata server");
 
@@ -215,50 +243,34 @@ public final class Client {
       */
 
       /*
-      // read a file
-      // non-exist file
-      FileInfo file1 = FileInfo.newBuilder().setFilename("non-exist.txt").build();
-      FileInfo file1Response = metadataStub.readFile(file1);
-
-      // upload an un-existed file
-      upload("non-exist.txt");
-
-      // upload an existed file
-      upload("a.txt");
-
-      FileInfo file2 = FileInfo.newBuilder().setFilename("a.txt").build();
-      FileInfo file2Response = metadataStub.readFile(file2);
-
-      // modify a.txt locally
-      File fr = new File("a.txt");
-      Scanner sc = new Scanner(fr);
-      logger.info("Original file content is:");
-      while (sc.hasNextLine()) {
-          logger.info("----> " + sc.nextLine());
-      }
-
-      Files.write(Paths.get("a.txt"), "the text".getBytes(), StandardOpenOption.TRUNCATE_EXISTING);
-      logger.info("Now changed the file locally as follows:");
-      fr = new File("a.txt");
-      sc = new Scanner(fr);
-      while (sc.hasNextLine()) {
-          logger.info("----> " + sc.nextLine());
-      }
-
-      download("a.txt");
-      */
-
-      /*
       readNonExistFile();
       readExistFile();
 
       uploadNonExistFile();
       uploadExistFile();
       uploadDuplicateFile();
-      */
+
       downloadNonExistFile();
       downloadExistFile();
       downloadModifiedFile();
+      */
+
+      String action = args.getString("action");
+      String filename = args.getString("filename");
+
+      if (action.equals("upload")) {
+          upload(filename);
+      }
+      else if (action.equals("download")) {
+          String storagePath = args.getString("storage path");
+          download(filename, storagePath);
+      }
+      else if (action.equals("delete")) {
+          delete(filename);
+      }
+      else {
+          logger.info("Unrecognized action, acceptable actions are upload|download|delete|getversion");
+      }
 
       logger.info("Pass the first trial");
 	}
@@ -269,7 +281,7 @@ public final class Client {
     private static Namespace parseArgs(String[] args) {
         ArgumentParser parser = ArgumentParsers.newFor("Client").build().description("Client for SurfStore");
         parser.addArgument("config_file").type(String.class).help("Path to configuration file");
-        parser.addArgument("action").type(String.class).help("Client action: upload|download|delete|GetVersion");
+        parser.addArgument("action").type(String.class).help("Client action: upload|download|delete|getversion");
         parser.addArgument("filename").type(String.class).help("file name");
         if (args.length == 4) {
             parser.addArgument("storage path").type(String.class).help("Path to store downloaded file");
@@ -304,7 +316,7 @@ public final class Client {
         Client client = new Client(config);
 
         try {
-        	client.go();
+        	client.go(c_args);
         } finally {
             client.shutdown();
         }

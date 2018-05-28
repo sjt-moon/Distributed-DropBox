@@ -215,6 +215,20 @@ public final class Client {
         return false;
     }
 
+    private boolean getVersion(String filename) {
+        FileInfo getVersionRequest = FileInfo.newBuilder().setFilename(filename).build();
+        FileInfo getVersionResponse = this.metadataStub.getVersion(getVersionRequest);
+
+        // if file not found or deleted
+        if (getVersionResponse.getVersion() == 0) {
+            System.out.println("Not Found");
+            return false;
+        }
+        System.out.println("OK");
+        System.out.println(getVersionResponse.getVersion());
+        return true;
+    }
+
 	private void go(Namespace args) throws IOException {
       metadataStub.ping(Empty.newBuilder().build());
       logger.info("Successfully pinged the Metadata server");
@@ -267,6 +281,9 @@ public final class Client {
       }
       else if (action.equals("delete")) {
           delete(filename);
+      }
+      else if (action.equals("getversion")) {
+          getVersion(filename);
       }
       else {
           logger.info("Unrecognized action, acceptable actions are upload|download|delete|getversion");

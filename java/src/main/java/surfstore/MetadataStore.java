@@ -394,7 +394,11 @@ public final class MetadataStore {
          @Override
         public void getVersion(surfstore.SurfStoreBasic.FileInfo request,
             io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.FileInfo> responseObserver) {
-                FileStruct fileStructObj = this.metaMap.get(request.getFilename());
+                FileStruct fileStructObj = this.metaMap.getOrDefault(request.getFilename(), new FileStruct(null, 0));
+                // if file is deleted at meta server, also return not found
+                if (fileStructObj.hashList.size() == 1 && fileStructObj.hashList.get(0).equals("0")) {
+                    fileStructObj = new FileStruct(null, 0);
+                }
 
                 FileInfo.Builder builder = FileInfo.newBuilder();
                 builder.setFilename(request.getFilename());

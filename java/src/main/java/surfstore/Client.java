@@ -224,7 +224,6 @@ public final class Client {
             System.out.println("Not Found");
             return false;
         }
-        System.out.println("OK");
         System.out.println(getVersionResponse.getVersion());
         return true;
     }
@@ -269,7 +268,7 @@ public final class Client {
       downloadModifiedFile();
       */
 
-      String action = args.getString("action");
+      String action = args.getString("action").toLowerCase();
       String filename = args.getString("filename");
 
       if (action.equals("upload")) {

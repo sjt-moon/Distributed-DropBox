@@ -119,6 +119,9 @@ message WriteResult {
     Result result = 1;
     int32 current_version = 2;
     repeated string missing_blocks = 3; // hashlist
+
+    // add by sjt
+    //string filename = 4;
 }
 
 message SimpleAnswer {

@@ -215,6 +215,7 @@ public final class MetadataStore {
                 logger.info("Modify file " + request.getFilename());
 
                 WriteResult.Builder builder = WriteResult.newBuilder();
+                //builder.setFilename(request.getFilename());
 
                 // first check if the file exists by reading
                 String filename = request.getFilename();

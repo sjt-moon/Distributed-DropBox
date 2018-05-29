@@ -215,20 +215,23 @@ public final class Client {
         return false;
     }
 
-    private boolean getVersion(String filename) {
+    private int getVersion(String filename) {
         FileInfo getVersionRequest = FileInfo.newBuilder().setFilename(filename).build();
         FileInfo getVersionResponse = this.metadataStub.getVersion(getVersionRequest);
 
         // if file not found or deleted
-        if (getVersionResponse.getVersion() == 0) {
+        int version = getVersionResponse.getVersion();
+        System.out.println(version);
+        if (version == 0) {
             System.out.println("Not Found");
-            return false;
+            //return false;
         }
-        System.out.println(getVersionResponse.getVersion());
-        return true;
+        //System.out.println(getVersionResponse.getVersion());
+        //return true;
+        return version;
     }
 
-	private void go(Namespace args) throws IOException {
+    private void go(Namespace args) throws IOException {
       metadataStub.ping(Empty.newBuilder().build());
       logger.info("Successfully pinged the Metadata server");
 

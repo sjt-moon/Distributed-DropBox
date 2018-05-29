@@ -47,6 +47,7 @@ public final class MetadataStore {
 	private void start(int port, int numThreads) throws IOException {
         // add by sjt
         boolean isThisLeader = config.getLeaderPort() == port;
+	System.out.println("Start @ Leader ?: " + (isThisLeader ? "Yes" : "No"));
 
         server = ServerBuilder.forPort(port)
                 .addService(new MetadataStoreImpl(isThisLeader, this.config))
@@ -117,6 +118,7 @@ public final class MetadataStore {
         // filename -> {hash lists, version}
         protected Map<String, FileStruct> metaMap;
         protected boolean isThisLeader;
+	protected boolean isCrashed;
 
         // add by sjt
         private final ManagedChannel blockChannel;
@@ -133,6 +135,7 @@ public final class MetadataStore {
             super();
             this.metaMap = new HashMap<String, FileStruct>();
             this.isThisLeader = isThisLeader;
+            this.isCrashed = false;
 
             // add by sjt
             this.blockChannel = ManagedChannelBuilder.forAddress("127.0.0.1", config.getBlockPort()).usePlaintext(true).build();
@@ -183,6 +186,7 @@ public final class MetadataStore {
                 }
 
                 FileInfo.Builder builder = FileInfo.newBuilder();
+		builder.setFilename(filename);
                 builder.setVersion(fileStructObj.version);
                 if (fileStructObj.hashList != null) builder.addAllBlocklist(fileStructObj.hashList);
                 FileInfo response = builder.build();
@@ -350,7 +354,9 @@ public final class MetadataStore {
          @Override
         public void crash(surfstore.SurfStoreBasic.Empty request,
             io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.Empty> responseObserver) {
-                Empty response = Empty.newBuilder().build();
+		this.isCrashed = true;                
+
+		Empty response = Empty.newBuilder().build();
                 responseObserver.onNext(response);
                 responseObserver.onCompleted();
         }
@@ -364,7 +370,9 @@ public final class MetadataStore {
          @Override
         public void restore(surfstore.SurfStoreBasic.Empty request,
             io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.Empty> responseObserver) {
-                Empty response = Empty.newBuilder().build();
+        	this.isCrashed = false;        
+	
+		Empty response = Empty.newBuilder().build();
                 responseObserver.onNext(response);
                 responseObserver.onCompleted();
         }
@@ -378,7 +386,7 @@ public final class MetadataStore {
          @Override
         public void isCrashed(surfstore.SurfStoreBasic.Empty request,
             io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.SimpleAnswer> responseObserver) {
-                SimpleAnswer response = SimpleAnswer.newBuilder().setAnswer(false).build();
+                SimpleAnswer response = SimpleAnswer.newBuilder().setAnswer(this.isCrashed).build();
                 responseObserver.onNext(response);
                 responseObserver.onCompleted();
         }

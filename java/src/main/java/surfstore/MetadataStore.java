@@ -47,7 +47,8 @@ class HeartBeat implements Runnable {
     @Override
     public void run() {
         // try to append new logs on foll
-        if (!this.metadataStub.isCrashed(Empty.newBuilder().build()) && logsToBeUpdated != null) {
+        SimpleAnswer isCrashedResponse = this.metadataStub.isCrashed(Empty.newBuilder().build());
+        if (!isCrashedResponse.getAnswer() && logsToBeUpdated != null) {
             this.metadataStub.logs.addAll(logsToBeUpdated);
         }
 

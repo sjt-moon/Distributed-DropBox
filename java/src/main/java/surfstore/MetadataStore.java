@@ -47,11 +47,11 @@ class HeartBeat implements Runnable {
     @Override
     public void run() {
         // try to append new logs on foll
-        if (!this.metadataStub.isCrashed() && logsToBeUpdated != null) {
+        if (!this.metadataStub.isCrashed(Empty.newBuilder().build()) && logsToBeUpdated != null) {
             this.metadataStub.logs.addAll(logsToBeUpdated);
         }
 
-        Thread.sleep(0.5);
+        Thread.sleep(500);
     }
 }
 
@@ -68,7 +68,7 @@ public final class MetadataStore {
 	private void start(int port, int numThreads) throws IOException {
         // add by sjt
         boolean isThisLeader = config.getLeaderPort() == port;
-	    System.out.println("Start @ Leader ?: " + (isThisLeader ? "Yes" : "No"));
+	      System.out.println("Start @ Leader ?: " + (isThisLeader ? "Yes" : "No"));
 
         server = ServerBuilder.forPort(port)
                 .addService(new MetadataStoreImpl(isThisLeader, this.config))

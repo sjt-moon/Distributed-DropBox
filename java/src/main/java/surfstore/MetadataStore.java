@@ -55,15 +55,6 @@ class HeartBeat implements Runnable {
     }
 }
 
-class HeartBeatRunner implements Runnable {
-    @Override 
-    public void run() {
-        while (true) {
-
-        }
-    }
-}
-
 public final class MetadataStore {
     private static final Logger logger = Logger.getLogger(MetadataStore.class.getName());
 
@@ -77,7 +68,7 @@ public final class MetadataStore {
 	private void start(int port, int numThreads) throws IOException {
         // add by sjt
         boolean isThisLeader = config.getLeaderPort() == port;
-	      System.out.println("Start @ Leader ?: " + (isThisLeader ? "Yes" : "No"));
+	    System.out.println("Start @ Leader ?: " + (isThisLeader ? "Yes" : "No"));
 
         server = ServerBuilder.forPort(port)
                 .addService(new MetadataStoreImpl(isThisLeader, this.config))

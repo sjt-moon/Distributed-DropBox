@@ -92,13 +92,13 @@ public final class BlockStore {
 
     static class BlockStoreImpl extends BlockStoreGrpc.BlockStoreImplBase {
 
-      // hash -> byte block
-      protected Map<String, byte[]> blockMap;
+        // hash -> byte block
+        protected Map<String, byte[]> blockMap;
 
-      public BlockStoreImpl() {
-        super();
-        this.blockMap = new HashMap<String, byte[]>();
-      }
+        public BlockStoreImpl() {
+            super();
+            this.blockMap = new HashMap<String, byte[]>();
+        }
 
         @Override
         public void ping(Empty req, final StreamObserver<Empty> responseObserver) {

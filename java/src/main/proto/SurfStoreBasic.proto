@@ -131,3 +131,8 @@ message SimpleAnswer {
 message NodeList {
     repeated int32 nodelist = 1;
 }
+
+message LogMsg {
+    string command = 1;
+    FileInfo request = 2;
+}

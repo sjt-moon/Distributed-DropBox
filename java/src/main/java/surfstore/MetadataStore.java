@@ -36,23 +36,35 @@ class FileStruct {
 
 /* Every 0.5s leader sends a HeartBeat to each follower to make sure they are updated */
 class HeartBeat implements Runnable {
-    MetadataStoreGrpc.MetadataStoreBlockingStub metadataStub;
-    List<LogMsg> logsToBeUpdated;
+    List<MetadataStoreGrpc.MetadataStoreBlockingStub> followers;
+    List<LogMsg> leaderLogs;
 
-    HeartBeat(MetadataStoreGrpc.MetadataStoreBlockingStub metadataStub, List<surfstore.SurfStoreBasic.LogMsg> logsToBeUpdated) {
-        this.metadataStub = metadataStub;
-        this.logsToBeUpdated = logsToBeUpdated;
+    HeartBeat(List<MetadataStoreGrpc.MetadataStoreBlockingStub> followers, List<LogMsg> leaderLogs) {
+        this.followers = followers;
+        this.leaderLogs = leaderLogs;
     }
 
     @Override
     public void run() {
         // try to append new logs on foll
-        SimpleAnswer isCrashedResponse = this.metadataStub.isCrashed(Empty.newBuilder().build());
-        if (!isCrashedResponse.getAnswer() && logsToBeUpdated != null) {
-            this.metadataStub.logs.addAll(logsToBeUpdated);
-        }
+        while (true) {
+            for (MetadataStoreGrpc.MetadataStoreBlockingStub follower: this.followers) {
+                SimpleAnswer isCrashedResponse = follower.isCrashed(Empty.newBuilder().build());
+                if (!isCrashedResponse.getAnswer()) {
+                    // rpc seems better
+                    int followerIndex = follower.size();
+                    List<LogMsg> logsToBeUpdated = this.leaderLogs.subList(followerIndex, this.leaderLogs.size());
+                    follower.logs.addAll(logsToBeUpdated);
+                }
+            }
 
-        Thread.sleep(500);
+            try {
+                Thread.sleep(500);
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
 
@@ -142,7 +154,8 @@ public final class MetadataStore {
         protected boolean isThisLeader;
 	    protected boolean isCrashed;
 
-        public  List<surfstore.SurfStoreBasic.LogMsg> logs;
+        public List<LogMsg> logs;
+        //public ReentrantLock lock = new ReentrantLock();
 
         // add by sjt
         // only leader has connection to blockServer
@@ -166,6 +179,7 @@ public final class MetadataStore {
             this.isCrashed = false;
 
             this.logs = new LinkedList<>();
+            this.followers = new LinkedList<>();
 
             // add by sjt
             if (this.isThisLeader) {
@@ -173,13 +187,16 @@ public final class MetadataStore {
                 this.blockChannel = ManagedChannelBuilder.forAddress("127.0.0.1", config.getBlockPort()).usePlaintext(true).build();
                 this.blockStub = BlockStoreGrpc.newBlockingStub(blockChannel);
 
-                // init metaServer followers
+                // init metaServer follower stubs
                 int numOfServers= config.getNumMetadataServers();
                 for (int i = 1; i < numOfServers + 1; i++) {
                     if (i == config.getLeaderNum()) continue;
                     ManagedChannel metadataChannel = ManagedChannelBuilder.forAddress("127.0.0.1", config.getMetadataPort(i)).usePlaintext(true).build();
                     this.followers.add(MetadataStoreGrpc.newBlockingStub(metadataChannel));
                 }
+
+                // start sending heartbeats
+                Thread heartBeatRunner = new Thread(new HeartBeat(this.followers, this.logs), "heart beat runner");
             }
         }
 
@@ -295,6 +312,13 @@ public final class MetadataStore {
                         builder.setResult(WriteResult.Result.OK);
                         builder.setCurrentVersion(request.getVersion());
 
+                        // 2-phase commit
+                        // vote
+                        for (MetadataStoreGrpc.MetadataStoreBlockingStub follower: this.followers) {
+                            SimpleAnswer voteResponse = SimpleAnswer.newBuilder().build();
+                            // to do sth
+                        }
+
                         // if OK, update metaMap mapping from filename to FileStruct
                         this.metaMap.put(filename, new FileStruct(request.getBlocklistList(), request.getVersion()));
                     }
@@ -393,11 +417,11 @@ public final class MetadataStore {
          */
          @Override
         public void crash(surfstore.SurfStoreBasic.Empty request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.Empty> responseObserver) {
-		      this.isCrashed = true;
+            this.isCrashed = true;
 
-		      Empty response = Empty.newBuilder().build();
-              responseObserver.onNext(response);
-              responseObserver.onCompleted();
+		    Empty response = Empty.newBuilder().build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
         }
 
         /**

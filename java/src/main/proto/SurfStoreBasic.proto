@@ -136,3 +136,7 @@ message LogMsg {
     string command = 1;
     FileInfo request = 2;
 }
+
+message MissingLogs {
+    repeated LogMsg = 1;
+}

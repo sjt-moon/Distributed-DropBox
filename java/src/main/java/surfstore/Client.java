@@ -205,7 +205,7 @@ public final class Client {
         int writeVersion = fileReadResponse.getVersion() + 1;
 
         // 2nd: delete file on the server
-        FileInfo fileDeleteRequest = FileInfo.newBuilder().setFilename(filename).setVersion(writeVersion).build();
+        FileInfo fileDeleteRequest = FileInfo.newBuilder().setFilename(filename).setVersion(writeVersion).addAllBlocklist(new LinkedList<String>(Arrays.asList("0"))).build();
         WriteResult fileDeleteResponse = this.metadataStub.deleteFile(fileDeleteRequest);
 
         if (fileDeleteResponse.getResult() == WriteResult.Result.OK) {

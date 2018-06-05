@@ -76,10 +76,13 @@ service MetadataStore {
     rpc GetHeartBeatsResponse(HeartBeatsRequest) returns (HeartBeatsResponse) {}
 
     // Append missing logs and update metaMap
-    rpc AppendLogs (LogList) returns (Empty) {}
+    rpc AppendLogs(LogList) returns (Empty) {}
 
     // Vote (a follwer would conduct this behavior)
     rpc Vote(LogMsg) returns (SimpleAnswer) {}
+
+    // Commit a modification / deletion
+    rpc Commit(LogMsg) returns (Empty) {} 
 }
 
 service BlockStore {

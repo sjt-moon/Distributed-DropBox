@@ -278,7 +278,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
 
             // if all blocks are found in BlockStore
             if (missingBlocks.size() <= 0) {
-                LogMsg log = LogMsg.newBuilder().setIndex(localCommit + 1).setCommand("modify").setRequest(request).build();
+                LogMsg log = LogMsg.newBuilder().setIndex(this.localCommit + 1).setCommand("modify").setRequest(request).build();
                 if (this.twoPhaseCommit(log)) {
                     logger.info("Modificaiton verified");
                     builder.setCurrentVersion(request.getVersion());
@@ -346,14 +346,14 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
 
         // delete file
         else {
-            LogMsg log = LogMsg.newBuilder().setIndex(localCommit + 1).setCommand("delete").setRequest(request).build();
+            LogMsg log = LogMsg.newBuilder().setIndex(this.localCommit + 1).setCommand("delete").setRequest(request).build();
             if (twoPhaseCommit(log)) {
                 logger.info("Deletion verified");
                 builder.setCurrentVersion(request.getVersion());
                 builder.setResult(WriteResult.Result.OK);
 
                 // set hashlist as {"0",}
-                this.metaMap.put(filename, new FileStruct(new LinkedList<String>(Arrays.asList("0")), request.getVersion()));
+                this.metaMap.put(filename, new FileStruct(request.getBlocklistList(), request.getVersion()));
             }
             else {
                 System.out.println("Two phase commit failed @ deleteFile()");
@@ -389,7 +389,8 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     */
     @Override
     public void crash(surfstore.SurfStoreBasic.Empty request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.Empty> responseObserver) {
-        this.isCrashed = true;
+        if (!this.isThisLeader)
+            this.isCrashed = true;
 
         Empty response = Empty.newBuilder().build();
         responseObserver.onNext(response);
@@ -455,7 +456,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
                 FileInfo followResponse = follwer.getVersion(request);
                 follwerVersions.add(followResponse.getVersion());
             }
-            builder.addFollwerVersions(follwerVersions);
+            builder.addAllFollwerVersions(follwerVersions);
         }
 
         logger.info("Get version of file " + request.getFilename() + " version is " + fileStructObj.version);
@@ -463,6 +464,130 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
         FileInfo response = builder.build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
+    }
+
+    /**
+    * Vote for modification or deletion
+    * Return
+    * - whether that follower could update or not
+    * Note
+    * - if vote yes, server would add that log into local logs, if failed at end, need to abort
+    * - that's why do NOT update localCommit this time!
+    */
+    @Override
+    public void vote(surfstore.SurfStoreBasic.LogMsg request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.SimpleAnswer> responseObserver) {
+        SimpleAnswer.Builder builder = SimpleAnswer.newBuilder();
+
+        if (this.isCrashed || request.getIndex() != this.localCommit + 1) {
+            builder.setAnswer(false);
+        }
+        else {
+            builder.setAnswer(true);
+
+            // do NOT update localCommit at this time!
+            this.logs.add(request);
+        }
+        SimpleAnswer response = builder.build();
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    /**
+    * Commit update
+    */
+    @Override
+    public void commit(LogMsg log, inal StreamObserver<Empty> responseObserver) {
+        if (!this.isCrashed && this.logs != null && this.localCommit == log.getIndex()) {
+            this.localCommit++;
+
+            // update metaMap
+            FileInfo fileUpdatedInfo = log.getRequest();
+            String filename = fileUpdatedInfo.getFilename();
+            int version = fileUpdatedInfo.getVersion();
+            List<String> hashList = fileUpdatedInfo.getBlocklistList();
+
+            this.metaMap.put(filename, new FileStruct(hashList, version);)
+        }
+
+        Empty response = Empty.newBuilder().build();
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    /**
+    * Abort an modification / deletion
+    */
+    @Override
+    public void abort(LogMsg log, inal StreamObserver<Empty> responseObserver) {
+        if (!this.isCrashed && this.logs.get(this.logs.size() - 1).getIndex() == log.getIndex()) {
+            this.logs.remove(this.logs.size() - 1);
+        }
+
+        Empty response = Empty.newBuilder().build();
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    /**
+    * Two-phase commit @ leader
+    * Params:
+    * - LogMsg: log
+    * Return:
+    * - boolean: commit success or not
+    */
+    public boolean twoPhaseCommit(LogMsg log) {
+        this.logs.add(log);
+
+        // 1st phase: vote from followers
+        int numOfVoteYes = 0;
+        for (MetadataStoreGrpc.MetadataStoreBlockingStub follower: this.followers) {
+            SimpleAnswer voteResult = follower.vote(log);
+            if (voteResult.getAnswer()) numOfVoteYes++;
+        }
+
+        // 2nd phase: commit to followers
+        if (numOfVoteYes >= (this.followers.size() + 1) / 2) {
+            for (MetadataStoreGrpc.MetadataStoreBlockingStub follower: this.followers) {
+                follower.commit(log);
+            }
+
+            // update leader localCommit
+            this.localCommit++;
+            return true;
+        }
+        else {
+            // abort
+            for (MetadataStoreGrpc.MetadataStoreBlockingStub follower: this.followers) {
+                follower.abort(log);
+            }
+
+            // abort leader
+            this.logs.remove(this.logs.size() - 1);
+            return false;
+        }
+    }
+
+    /**
+    * Leader (already ensured in the construction function) sends heart beats
+    */
+    public void sendHeartBeats() {
+        HeartBeatsRequest request = HeartBeatsRequest.newBuilder().setIndex(this.localCommit).build();
+        for (MetadataStoreGrpc.MetadataStoreBlockingStub follower: this.followers) {
+            HeartBeatsResponse response = follwer.getHeartBeatsResponse(request);
+
+            if (!response.getIsUpdated()) {
+                // send missing logs
+                int followerCommitIndex = response.getIndex();
+                List<LogMsg> missingLogs = new LinkedList<>();
+                for (int i = followerCommitIndex; i < this.logs.size(); i++) {
+                    missingLogs.add(this.logs.get(i));
+                }
+
+                // rpc call
+                LogList missingLogsRequest = LogList.newBuilder().addAllLogs(missingLogs).build();
+                follower.appendLogs(missingLogsRequest);
+            }
+        }
     }
 
     /**
@@ -523,56 +648,4 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
         responseObserver.onCompleted();
     }
 
-    /**
-    * Vote for modification or deletion
-    * Return
-    * - whether that follower could update or not
-    * Note
-    * - if vote yes, server would add that log into local logs, if failed at end, need to abort
-    * - that's why do NOT update localCommit this time!
-    */
-    @Override
-    public void vote(surfstore.SurfStoreBasic.LogMsg request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.SimpleAnswer> responseObserver) {
-        SimpleAnswer.Builder builder = SimpleAnswer.newBuilder();
-
-        if (this.isCrashed || request.getIndex() != this.localCommit + 1) {
-            builder.setAnswer(false);
-        }
-        else {
-            builder.setAnswer(true);
-            this.logs.add(request);
-        }
-        SimpleAnswer response = builder.build();
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-    }
-
-    /**
-    * Commit update
-    */
-    @Override
-    public void commit() {
-
-    }
-
-    /**
-    * Leader (already ensured in the construction function) sends heart beats
-    */
-    public void sendHeartBeats() {
-        HeartBeatsRequest request = HeartBeatsRequest.newBuilder().setIndex(this.localCommit).build();
-        for (MetadataStoreGrpc.MetadataStoreBlockingStub follower: this.followers) {
-            HeartBeatsResponse response = follwer.getHeartBeatsResponse(request);
-
-            if (!response.getIsUpdated()) {
-                // send missing logs
-                int followerCommitIndex = response.getIndex();
-                List<LogMsg> missingLogs = new LinkedList<>();
-                for (int i = followerCommitIndex; i < this.logs.size(); i++) {
-                    missingLogs.add(this.logs.get(i));
-                }
-                LogList missingLogsRequest = LogList.newBuilder().addAllLogs(missingLogs).build();
-                follower.appendLogs(missingLogsRequest);
-            }
-        }
-    }
 }

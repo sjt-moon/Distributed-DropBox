@@ -82,7 +82,7 @@ service MetadataStore {
     rpc Vote(LogMsg) returns (SimpleAnswer) {}
 
     // Commit a modification / deletion
-    rpc Commit(LogMsg) returns (Empty) {} 
+    rpc Commit(LogMsg) returns (Empty) {}
 }
 
 service BlockStore {
@@ -149,7 +149,7 @@ message NodeList {
 }
 
 message LogMsg {
-    int index = 1;
+    int32 index = 1;
     string command = 2;
     FileInfo request = 3;
 }

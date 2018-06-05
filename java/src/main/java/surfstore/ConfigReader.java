@@ -101,4 +101,10 @@ public final class ConfigReader {
     public int getLeaderPort() {
         return this.getMetadataPort(this.getLeaderNum());
     }
+
+    public List<Integer> getServerIds() {
+        List<Integer> serverIds = new LinkedList<>(
+        serverIds.addAll(this.metadataPort.keySet());
+        return serverIds;
+    }
 }

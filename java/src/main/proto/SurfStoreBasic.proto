@@ -69,6 +69,17 @@ service MetadataStore {
 
     // YOU CAN INSERT ADDITIONAL RPC CALLS HERE TO IMPLEMENT PART 2
     // OF THE PROJECT, BUT PLEASE DON'T MODIFY THE ABOVE CALLS/ARGUMENTS
+
+    // Returns:
+    // - current local commit index
+    // - whether needs to be updated
+    rpc GetHeartBeatsResponse(HeartBeatsRequest) returns (HeartBeatsResponse) {}
+
+    // Append missing logs and update metaMap
+    rpc AppendLogs (LogList) returns (Empty) {}
+
+    // Vote (a follwer would conduct this behavior)
+    rpc Vote(LogMsg) returns (SimpleAnswer) {}
 }
 
 service BlockStore {
@@ -102,6 +113,8 @@ message FileInfo {
     string filename = 1;
     int32 version = 2;
     repeated string blocklist = 3; // hashlist
+
+    repeated int32 follwerVersions = 4; // followers' versions
 }
 
 message Block {
@@ -133,10 +146,20 @@ message NodeList {
 }
 
 message LogMsg {
-    string command = 1;
-    FileInfo request = 2;
+    int index = 1;
+    string command = 2;
+    FileInfo request = 3;
 }
 
-message MissingLogs {
-    repeated LogMsg = 1;
+message LogList {
+    repeated LogMsg logs = 1;
+}
+
+message HeartBeatsRequest {
+    int32 index = 1; // leader commit index
+}
+
+message HeartBeatsResponse {
+    int32 index = 1; // local commit index
+    bool isUpdated = 2; // if crashed, take it as updated (not to update it)
 }

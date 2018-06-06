@@ -265,6 +265,10 @@ public final class Client {
       ensure(b1prime.getData().equals(b1.getData()));
       */
 
+      /***********************************
+      * unit test on centralized scenario
+      ************************************/
+
       /*
       readNonExistFile();
       readExistFile();
@@ -278,6 +282,9 @@ public final class Client {
       downloadModifiedFile();
       */
 
+      crashAndRecoverOneServer();
+
+      /*
       String action = args.getString("action").toLowerCase();
       String filename = args.getString("filename");
 
@@ -297,6 +304,7 @@ public final class Client {
       else {
           logger.info("Unrecognized action, acceptable actions are upload|download|delete|getversion");
       }
+      */
 
       logger.info("Pass the first trial");
 	}
@@ -428,7 +436,44 @@ public final class Client {
     * ***********
     */
 
+    /* when one follower meta server crashes & recovers
+    * story line:
+    * - upload files
+    * - crash server #2
+    * - keep uploading
+    * - get versions
+    * - recover server # 2
+    * - sleep 5 seconds
+    * - get versions // heartbeats would update lagged servers
+    */
+    public void crashAndRecoverOneServer() throws IOException {
+        upload("a.txt");
 
+        // crash server #2 (follower)
+        // first get connected to that server
+        ManagedChannel serverCrashedChannel;
+        MetadataStoreGrpc.MetadataStoreBlockingStub serverCrashedStub;
+        serverCrashedChannel = ManagedChannelBuilder.forAddress("127.0.0.1", config.getMetadataPort(2)).usePlaintext(true).build();
+        serverCrashedStub = MetadataStoreGrpc.newBlockingStub(serverCrashedChannel);
+
+        serverCrashedStub.crash(Empty.newBuilder().build());
+
+        upload("a.txt");
+
+        this.getVersion("a.txt");
+
+        // recover server #2
+        serverCrashedStub.restore(Empty.newBuilder().build());
+
+        try {
+            Thread.sleep(3000);
+        }
+        catch (InterruptedException e) {
+            System.out.println("Client sleep thread error @ crashAndRecoverOneServer()");
+        }
+
+        this.getVersion("a.txt");
+    }
 
     /* **************
     * some utilities

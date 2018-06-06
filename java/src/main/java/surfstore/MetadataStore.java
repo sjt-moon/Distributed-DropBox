@@ -127,7 +127,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     private final BlockStoreGrpc.BlockStoreBlockingStub blockStub;
 
     private List<LogMsg> logs;
-    private List<MetadataStoreGrpc.MetadataStoreBlockingStub> followers;
+    public List<MetadataStoreGrpc.MetadataStoreBlockingStub> followers;
 
     private static final Logger logger = Logger.getLogger(MetadataStoreImpl.class.getName());
 
@@ -610,7 +610,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
                 // send missing logs
                 int followerCommitIndex = response.getIndex();
                 List<LogMsg> missingLogs = new LinkedList<>();
-                for (int i = followerCommitIndex; i < this.logs.size(); i++) {
+                for (int i = followerCommitIndex; i < this.localCommit; i++) {
                     missingLogs.add(this.logs.get(i));
                 }
 

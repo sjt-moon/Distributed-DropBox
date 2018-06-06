@@ -7,6 +7,9 @@ import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import java.util.List;
+import java.util.LinkedList;
+
 public final class ConfigReader {
     private static final String numMetadataMatchStr = "M(:|=)\\s*(?<numMetadata>\\d+)";
     private static final String leaderNumMatchStr = "L(:|=)\\s*(?<leaderNum>\\d+)";
@@ -103,8 +106,8 @@ public final class ConfigReader {
     }
 
     public List<Integer> getServerIds() {
-        List<Integer> serverIds = new LinkedList<>(
-        serverIds.addAll(this.metadataPort.keySet());
+        List<Integer> serverIds = new LinkedList<>();
+        serverIds.addAll(this.metadataPorts.keySet());
         return serverIds;
     }
 }

@@ -78,11 +78,14 @@ service MetadataStore {
     // Append missing logs and update metaMap
     rpc AppendLogs(LogList) returns (Empty) {}
 
-    // Vote (a follwer would conduct this behavior)
+    // Vote (a follower would conduct this behavior)
     rpc Vote(LogMsg) returns (SimpleAnswer) {}
 
     // Commit a modification / deletion
     rpc Commit(LogMsg) returns (Empty) {}
+
+    // Abort modification / deletion
+    rpc Abort(LogMsg) returns (Empty) {}
 }
 
 service BlockStore {
@@ -117,7 +120,7 @@ message FileInfo {
     int32 version = 2;
     repeated string blocklist = 3; // hashlist
 
-    repeated int32 follwerVersions = 4; // followers' versions
+    repeated int32 followerVersions = 4; // followers' versions
 }
 
 message Block {

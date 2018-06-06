@@ -129,6 +129,8 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     private List<LogMsg> logs;
     private List<MetadataStoreGrpc.MetadataStoreBlockingStub> followers;
 
+    private static final Logger logger = Logger.getLogger(MetadataStoreImpl.class.getName());
+
     /*
     public MetadataStoreImpl() {
         super();
@@ -143,9 +145,16 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
         this.isCrashed = false;
         this.localCommit = 0;
         this.logs = new LinkedList<>();
+        this.followers = new LinkedList<>();
+
+        if (!this.isThisLeader) {
+            this.blockChannel = null;
+            this.blockStub = null;
+        }
 
         // add by sjt
-        if (this.isThisLeader) {
+        //if (this.isThisLeader) {
+        else {
             // metaServer leader should contacts with blockServer
             this.blockChannel = ManagedChannelBuilder.forAddress("127.0.0.1", config.getBlockPort()).usePlaintext(true).build();
             this.blockStub = BlockStoreGrpc.newBlockingStub(blockChannel);
@@ -153,6 +162,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
             // init metaServer follower stubs
             for (int serverId: config.getServerIds()) {
                 if (serverId == config.getLeaderNum()) continue;
+
                 ManagedChannel metadataChannel = ManagedChannelBuilder.forAddress("127.0.0.1", config.getMetadataPort(serverId)).usePlaintext(true).build();
                 this.followers.add(MetadataStoreGrpc.newBlockingStub(metadataChannel));
             }
@@ -168,7 +178,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
                         }
                         catch (InterruptedException e) {
                             System.out.println("Thread error @ heartBeatsThread");
-                            exit(1);
+                            System.exit(1);
                         }
                     }
                 }
@@ -201,7 +211,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     public void readFile(surfstore.SurfStoreBasic.FileInfo request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.FileInfo> responseObserver) {
         if (!this.isThisLeader) {
             logger.info("This is NOT a leader node");
-            System.exit(2);
+            System.exit(1);
         }
 
         // leader NEVER crashes!
@@ -434,7 +444,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     *   crashed state
     * </pre>
     *
-    * Follower would return its 'version', ignore 'follwerVersions'
+    * Follower would return its 'version', ignore 'followerVersions'
     * Leader would fill in both fields
     */
     @Override
@@ -450,16 +460,23 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
         builder.setFilename(request.getFilename());
         builder.setVersion(fileStructObj.version);
 
-        if (this.isThisLeader) {
-            List<int> follwerVersions = new LinkedList<>();
-            for (MetadataStoreGrpc.MetadataStoreBlockingStub follower: this.followers) {
-                FileInfo followResponse = follwer.getVersion(request);
-                follwerVersions.add(followResponse.getVersion());
-            }
-            builder.addAllFollwerVersions(follwerVersions);
-        }
-
         logger.info("Get version of file " + request.getFilename() + " version is " + fileStructObj.version);
+
+        if (this.isThisLeader) {
+            List<Integer> followerVersions = new LinkedList<>();
+            for (MetadataStoreGrpc.MetadataStoreBlockingStub follower: this.followers) {
+                FileInfo followResponse = follower.getVersion(request);
+                followerVersions.add(followResponse.getVersion());
+            }
+            builder.addAllFollowerVersions(followerVersions);
+
+            // log
+            String text = "";
+            for (int v: followerVersions) {
+                text += v + ", ";
+            }
+            logger.info("Follower versions: " + text);
+        }
 
         FileInfo response = builder.build();
         responseObserver.onNext(response);
@@ -487,7 +504,10 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
             // do NOT update localCommit at this time!
             this.logs.add(request);
         }
+
         SimpleAnswer response = builder.build();
+        logger.info("Vote " + request.getRequest().getFilename() + ": " + (response.getAnswer() ? "Yes" : "No"));
+
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
@@ -496,8 +516,8 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     * Commit update
     */
     @Override
-    public void commit(LogMsg log, inal StreamObserver<Empty> responseObserver) {
-        if (!this.isCrashed && this.logs != null && this.localCommit == log.getIndex()) {
+    public void commit(LogMsg log, final StreamObserver<Empty> responseObserver) {
+        if (!this.isCrashed && this.localCommit + 1 == log.getIndex()) {
             this.localCommit++;
 
             // update metaMap
@@ -506,7 +526,18 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
             int version = fileUpdatedInfo.getVersion();
             List<String> hashList = fileUpdatedInfo.getBlocklistList();
 
-            this.metaMap.put(filename, new FileStruct(hashList, version);)
+            this.metaMap.put(filename, new FileStruct(hashList, version));
+
+            logger.info("Commit " + filename + " succeeded");
+        }
+        else {
+            logger.info("Commit " + log.getRequest().getFilename() + " failed");
+            if (this.isCrashed) {
+                logger.info("-> Server crashed");
+            }
+            else {
+                logger.info("-> Illegal index, local commit index is " + this.localCommit + " while request index is " + log.getIndex());
+            }
         }
 
         Empty response = Empty.newBuilder().build();
@@ -518,7 +549,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     * Abort an modification / deletion
     */
     @Override
-    public void abort(LogMsg log, inal StreamObserver<Empty> responseObserver) {
+    public void abort(LogMsg log, final StreamObserver<Empty> responseObserver) {
         if (!this.isCrashed && this.logs.get(this.logs.size() - 1).getIndex() == log.getIndex()) {
             this.logs.remove(this.logs.size() - 1);
         }
@@ -573,7 +604,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     public void sendHeartBeats() {
         HeartBeatsRequest request = HeartBeatsRequest.newBuilder().setIndex(this.localCommit).build();
         for (MetadataStoreGrpc.MetadataStoreBlockingStub follower: this.followers) {
-            HeartBeatsResponse response = follwer.getHeartBeatsResponse(request);
+            HeartBeatsResponse response = follower.getHeartBeatsResponse(request);
 
             if (!response.getIsUpdated()) {
                 // send missing logs
@@ -631,7 +662,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     public void appendLogs(surfstore.SurfStoreBasic.LogList request, final StreamObserver<Empty> responseObserver) {
         List<LogMsg> missingLogs = request.getLogsList();
         for (LogMsg log: missingLogs) {
-            FileInfo updatedFileInfo = request.getRequest();
+            FileInfo updatedFileInfo = log.getRequest();
             String filename = updatedFileInfo.getFilename();
             List<String> hashList = updatedFileInfo.getBlocklistList();
             int version = updatedFileInfo.getVersion();

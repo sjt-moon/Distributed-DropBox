@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.util.LinkedList;
+import java.util.Arrays;
 
 import java.nio.file.StandardOpenOption;
 import java.util.Scanner;
@@ -221,11 +222,17 @@ public final class Client {
 
         // if file not found or deleted
         int version = getVersionResponse.getVersion();
-        System.out.println(version);
-        if (version == 0) {
-            System.out.println("Not Found");
-            //return false;
+        // if (version == 0) {
+        //     System.out.println("Not Found");
+        //     //return false;
+        // }
+
+        String versionText = "" + version;
+        for (int followerVersion: getVersionResponse.getFollowerVersionsList()) {
+            versionText += " " + followerVersion;
         }
+        System.out.println(versionText);
+
         //System.out.println(getVersionResponse.getVersion());
         //return true;
         return version;
@@ -343,6 +350,7 @@ public final class Client {
 
     /* **********
     * unit tests
+    * centralized
     * ***********
     */
 
@@ -413,6 +421,14 @@ public final class Client {
         // 4th: show contents after downloading from server
         showFileContent("a.txt", "After downloading from server, file content is:");
     }
+
+    /* **********
+    * unit tests
+    * distributed
+    * ***********
+    */
+
+
 
     /* **************
     * some utilities

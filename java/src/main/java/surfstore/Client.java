@@ -282,9 +282,8 @@ public final class Client {
       downloadModifiedFile();
       */
 
-      crashAndRecoverOneServer();
+      // crashAndRecoverOneServer();
 
-      /*
       String action = args.getString("action").toLowerCase();
       String filename = args.getString("filename");
 
@@ -304,7 +303,6 @@ public final class Client {
       else {
           logger.info("Unrecognized action, acceptable actions are upload|download|delete|getversion");
       }
-      */
 
       logger.info("Pass the first trial");
 	}

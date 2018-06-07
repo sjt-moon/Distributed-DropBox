@@ -363,7 +363,8 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
                 builder.setResult(WriteResult.Result.OK);
 
                 // set hashlist as {"0",}
-                this.metaMap.put(filename, new FileStruct(request.getBlocklistList(), request.getVersion()));
+                //this.metaMap.put(filename, new FileStruct(request.getBlocklistList(), request.getVersion()));
+                this.metaMap.put(filename, new FileStruct(new LinkedList<String>(Arrays.asList("0")), request.getVersion()));
             }
             else {
                 System.out.println("Two phase commit failed @ deleteFile()");
@@ -385,7 +386,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     public void isLeader(surfstore.SurfStoreBasic.Empty request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.SimpleAnswer> responseObserver) {
         logger.info("Testing if it's the leader: " + this.isThisLeader);
 
-        SimpleAnswer response = SimpleAnswer.newBuilder().setAnswer(this.isThisLeader).build();
+        SimpleAnswer response = SimpleAnswer.newBuilder().setAnswer(this.isThisLeader).build();  
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }

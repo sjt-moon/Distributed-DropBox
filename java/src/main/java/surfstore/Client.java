@@ -329,7 +329,7 @@ public final class Client {
         }
 
         // client action
-        String action = res.get("action").toLowerCase();
+        String action = res.get("action");
         if (!action.equals("upload") && !action.equals("download") && !action.equals("delete") && !action.equals("getversion")) {
             System.out.println("Illegal action, plz use upload|download|delete|getversion");
             System.exit(2);

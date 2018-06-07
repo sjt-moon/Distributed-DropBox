@@ -526,6 +526,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
             String filename = fileUpdatedInfo.getFilename();
             int version = fileUpdatedInfo.getVersion();
             List<String> hashList = fileUpdatedInfo.getBlocklistList();
+            //if (hashList == null) hashList = new LinkedList<>();
 
             this.metaMap.put(filename, new FileStruct(hashList, version));
 
@@ -551,7 +552,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     */
     @Override
     public void abort(LogMsg log, final StreamObserver<Empty> responseObserver) {
-        if (!this.isCrashed && this.logs.get(this.logs.size() - 1).getIndex() == log.getIndex()) {
+        if (!this.isCrashed && this.logs.size() - 1 >= 0 && this.logs.get(this.logs.size() - 1).getIndex() == log.getIndex()) {
             this.logs.remove(this.logs.size() - 1);
         }
 
@@ -594,7 +595,8 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
             }
 
             // abort leader
-            this.logs.remove(this.logs.size() - 1);
+            if (this.logs.size() - 1 >= 0)
+                this.logs.remove(this.logs.size() - 1);
             return false;
         }
     }
@@ -611,7 +613,7 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
                 // send missing logs
                 int followerCommitIndex = response.getIndex();
                 List<LogMsg> missingLogs = new LinkedList<>();
-                for (int i = followerCommitIndex; i < this.localCommit; i++) {
+                for (int i = followerCommitIndex; i < this.localCommit && i < this.logs.size(); i++) {
                     missingLogs.add(this.logs.get(i));
                 }
 

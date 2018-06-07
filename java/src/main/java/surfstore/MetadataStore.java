@@ -209,25 +209,26 @@ class MetadataStoreImpl extends MetadataStoreGrpc.MetadataStoreImplBase {
     */
     @Override
     public void readFile(surfstore.SurfStoreBasic.FileInfo request, io.grpc.stub.StreamObserver<surfstore.SurfStoreBasic.FileInfo> responseObserver) {
+        FileInfo.Builder builder = FileInfo.newBuilder();
+
         if (!this.isThisLeader) {
-            logger.info("This is NOT a leader node");
-            System.exit(1);
+            logger.info("This is NOT a leader node, return an empty result");
         }
 
         // leader NEVER crashes!
+        else {
+            String filename = request.getFilename();
+            FileStruct fileStructObj = metaMap.getOrDefault(filename, new FileStruct(null, 0));
+            if (fileStructObj.version < 0) fileStructObj.version = 0;
 
-        String filename = request.getFilename();
-        FileStruct fileStructObj = metaMap.getOrDefault(filename, new FileStruct(null, 0));
-        if (fileStructObj.version < 0) fileStructObj.version = 0;
+            logger.info("Read file: " + filename + "\tversion: " + fileStructObj.version);
 
-        logger.info("Read file: " + filename + "\tversion: " + fileStructObj.version);
+            builder.setFilename(filename);
+            builder.setVersion(fileStructObj.version);
+            if (fileStructObj.hashList != null) builder.addAllBlocklist(fileStructObj.hashList);
+        }
 
-        FileInfo.Builder builder = FileInfo.newBuilder();
-        builder.setFilename(filename);
-        builder.setVersion(fileStructObj.version);
-        if (fileStructObj.hashList != null) builder.addAllBlocklist(fileStructObj.hashList);
         FileInfo response = builder.build();
-
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }

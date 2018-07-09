@@ -25,3 +25,9 @@ $ target/surfstore/bin/runClient
 ## To delete all programs and object files
 
 $ mvn clean
+
+## To upload a file
+![upload work flow](https://github.com/sjt-moon/Distributed-DropBox/blob/master/downloadExample.png)
+
+## To download a file
+![download work flow](https://github.com/sjt-moon/Distributed-DropBox/blob/master/downloadExample.png)
